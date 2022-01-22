@@ -1,17 +1,14 @@
 /*
     SlimeVR Code is placed under the MIT license
     Copyright (c) 2021 Eiren Rain, S.J. Remington
-
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
     to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
     copies of the Software, and to permit persons to whom the Software is
     furnished to do so, subject to the following conditions:
-
     The above copyright notice and this permission notice shall be included in
     all copies or substantial portions of the Software.
-
     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
     IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
     FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -525,23 +522,9 @@ void ICM20948Sensor::motionSetup() {
 
 void ICM20948Sensor::motionLoop() {
     timer.tick();
-    if(imu.dataReady())
-    {
-        lastReset = -1;
-        lastData = millis();
-    }
 
-    if (lastData + 1000 < millis()) {
-        working = false;
-        lastData = millis();        
-        Serial.print("[ERR] Sensor timeout ");
-        Serial.println(addr);
-    }
-}
-
-void ICM20948Sensor::sendData() { 
     ICM_20948_Status_e readStatus = imu.readDMPdataFromFIFO(&dmpData);
-    if(readStatus == ICM_20948_Stat_Ok)
+    if((readStatus == ICM_20948_Stat_FIFOMoreDataAvail) || (readStatus == ICM_20948_Stat_Ok))
         {
             if (USE_6_AXIS)
             {
@@ -560,7 +543,7 @@ void ICM20948Sensor::sendData() {
                     quaternion.y = q2;
                     quaternion.z = q3;
                     quaternion *= sensorOffset; //imu rotation
-                    sendRotationData(&quaternion, DATA_TYPE_NORMAL, 0, auxiliary, PACKET_ROTATION_DATA);
+                    newData = true;
                 }
             }
             else
@@ -580,11 +563,34 @@ void ICM20948Sensor::sendData() {
                     quaternion.y = q2;
                     quaternion.z = q3;
                     quaternion *= sensorOffset; //imu rotation
-                    sendRotationData(&quaternion, DATA_TYPE_NORMAL, dmpData.Quat9.Data.Accuracy, auxiliary, PACKET_ROTATION_DATA);
+                    newData = true;
                 }
             }
             lastReset = -1;
             lastData = millis();
+        }
+    
+
+    if (lastData + 1000 < millis()) {
+        working = false;
+        lastData = millis();        
+        Serial.print("[ERR] Sensor timeout ");
+        Serial.println(addr);
+    }
+}
+
+void ICM20948Sensor::sendData() { 
+        if(newData)
+        {
+            newData = false;
+            if (USE_6_AXIS)
+            {
+                sendRotationData(&quaternion, DATA_TYPE_NORMAL, 0, auxiliary, PACKET_ROTATION_DATA);
+            }
+            else
+            {
+                sendRotationData(&quaternion, DATA_TYPE_NORMAL, dmpData.Quat9.Data.Accuracy, auxiliary, PACKET_ROTATION_DATA);
+            }
         }
 }
 
@@ -603,7 +609,7 @@ void ICM20948Sensor::startCalibration(int calibrationType) {
 }
 
 //You need to override the libary's initializeDMP to change some settings 
-#if defined(OVERRIDEDMPSETUP)
+#if OVERRIDEDMPSETUP
 // initializeDMP is a weak function. Let's overwrite it so we can increase the sample rate
 ICM_20948_Status_e ICM_20948::initializeDMP(void)
 {
@@ -732,10 +738,10 @@ ICM_20948_Status_e ICM_20948::initializeDMP(void)
   // Set gyro sample rate divider with GYRO_SMPLRT_DIV
   // Set accel sample rate divider with ACCEL_SMPLRT_DIV_2
   ICM_20948_smplrt_t mySmplrt;
-  mySmplrt.g = 19; // ODR is computed as follows: 1.1 kHz/(1+GYRO_SMPLRT_DIV[7:0]). 19 = 55Hz. InvenSense Nucleo example uses 19 (0x13).
-  mySmplrt.a = 19; // ODR is computed as follows: 1.125 kHz/(1+ACCEL_SMPLRT_DIV[11:0]). 19 = 56.25Hz. InvenSense Nucleo example uses 19 (0x13).
-  //mySmplrt.g = 4; // 225Hz
-  //mySmplrt.a = 4; // 225Hz
+  //mySmplrt.g = 19; // ODR is computed as follows: 1.1 kHz/(1+GYRO_SMPLRT_DIV[7:0]). 19 = 55Hz. InvenSense Nucleo example uses 19 (0x13).
+  //mySmplrt.a = 19; // ODR is computed as follows: 1.125 kHz/(1+ACCEL_SMPLRT_DIV[11:0]). 19 = 56.25Hz. InvenSense Nucleo example uses 19 (0x13).
+  mySmplrt.g = 4; // 225Hz
+  mySmplrt.a = 4; // 225Hz
   //mySmplrt.g = 8; // 112Hz
   //mySmplrt.a = 8; // 112Hz
   result = setSampleRate((ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr), mySmplrt); if (result > worstResult) worstResult = result;
@@ -808,7 +814,9 @@ ICM_20948_Status_e ICM_20948::initializeDMP(void)
   //            0=1125Hz sample rate, 1=562.5Hz sample rate, ... 4=225Hz sample rate, ...
   //            10=102.2727Hz sample rate, ... etc.
   // @param[in] gyro_level 0=250 dps, 1=500 dps, 2=1000 dps, 3=2000 dps
-  result = setGyroSF(19, 3); if (result > worstResult) worstResult = result; // 19 = 55Hz (see above), 3 = 2000dps (see above)
+  //result = setGyroSF(19, 3); if (result > worstResult) worstResult = result; // 19 = 55Hz (see above), 3 = 2000dps (see above)
+  result = setGyroSF(4, 3); if (result > worstResult) worstResult = result; // 19 = 55Hz (see above), 3 = 2000dps (see above)
+
 
   // Configure the Gyro full scale
   // 2000dps : 2^28
