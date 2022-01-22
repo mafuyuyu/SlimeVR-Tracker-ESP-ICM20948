@@ -525,14 +525,23 @@ void ICM20948Sensor::motionSetup() {
 
 void ICM20948Sensor::motionLoop() {
     timer.tick();
-    // if(imu.dataReady())
-    // {
-    //     lastReset = -1;
-    //     lastData = millis();
-    // }
+    if(imu.dataReady())
+    {
+        lastReset = -1;
+        lastData = millis();
+    }
 
+    if (lastData + 1000 < millis()) {
+        working = false;
+        lastData = millis();        
+        Serial.print("[ERR] Sensor timeout ");
+        Serial.println(addr);
+    }
+}
+
+void ICM20948Sensor::sendData() { 
     ICM_20948_Status_e readStatus = imu.readDMPdataFromFIFO(&dmpData);
-        if(readStatus == ICM_20948_Stat_FIFOMoreDataAvail)
+    if(readStatus == ICM_20948_Stat_Ok)
         {
             if (USE_6_AXIS)
             {
@@ -576,29 +585,6 @@ void ICM20948Sensor::motionLoop() {
             }
             lastReset = -1;
             lastData = millis();
-        }
-    
-
-    if (lastData + 1000 < millis()) {
-        working = false;
-        lastData = millis();        
-        Serial.print("[ERR] Sensor timeout ");
-        Serial.println(addr);
-    }
-}
-
-void ICM20948Sensor::sendData() { 
-    ICM_20948_Status_e readStatus = imu.readDMPdataFromFIFO(&dmpData);
-        if(readStatus == ICM_20948_Stat_FIFOMoreDataAvail)
-        {
-            if (USE_6_AXIS)
-            {
-                sendRotationData(&quaternion, DATA_TYPE_NORMAL, 0, auxiliary, PACKET_ROTATION_DATA);
-            }
-            else
-            {
-                sendRotationData(&quaternion, DATA_TYPE_NORMAL, dmpData.Quat9.Data.Accuracy, auxiliary, PACKET_ROTATION_DATA);
-            }
         }
 }
 
@@ -746,8 +732,8 @@ ICM_20948_Status_e ICM_20948::initializeDMP(void)
   // Set gyro sample rate divider with GYRO_SMPLRT_DIV
   // Set accel sample rate divider with ACCEL_SMPLRT_DIV_2
   ICM_20948_smplrt_t mySmplrt;
-  mySmplrt.g = 4; // ODR is computed as follows: 1.1 kHz/(1+GYRO_SMPLRT_DIV[7:0]). 19 = 55Hz. InvenSense Nucleo example uses 19 (0x13).
-  mySmplrt.a = 4; // ODR is computed as follows: 1.125 kHz/(1+ACCEL_SMPLRT_DIV[11:0]). 19 = 56.25Hz. InvenSense Nucleo example uses 19 (0x13).
+  mySmplrt.g = 19; // ODR is computed as follows: 1.1 kHz/(1+GYRO_SMPLRT_DIV[7:0]). 19 = 55Hz. InvenSense Nucleo example uses 19 (0x13).
+  mySmplrt.a = 19; // ODR is computed as follows: 1.125 kHz/(1+ACCEL_SMPLRT_DIV[11:0]). 19 = 56.25Hz. InvenSense Nucleo example uses 19 (0x13).
   //mySmplrt.g = 4; // 225Hz
   //mySmplrt.a = 4; // 225Hz
   //mySmplrt.g = 8; // 112Hz
@@ -822,7 +808,7 @@ ICM_20948_Status_e ICM_20948::initializeDMP(void)
   //            0=1125Hz sample rate, 1=562.5Hz sample rate, ... 4=225Hz sample rate, ...
   //            10=102.2727Hz sample rate, ... etc.
   // @param[in] gyro_level 0=250 dps, 1=500 dps, 2=1000 dps, 3=2000 dps
-  result = setGyroSF(4, 3); if (result > worstResult) worstResult = result; // 19 = 55Hz (see above), 3 = 2000dps (see above)
+  result = setGyroSF(19, 3); if (result > worstResult) worstResult = result; // 19 = 55Hz (see above), 3 = 2000dps (see above)
 
   // Configure the Gyro full scale
   // 2000dps : 2^28
